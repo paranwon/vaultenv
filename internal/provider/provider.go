@@ -3,47 +3,48 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strings"
 )
 
-// SecretProvider is the common interface for all secret backends.
+// SecretProvider is the common interface implemented by all secret backends.
 type SecretProvider interface {
-	// GetSecret fetches secrets at the given path and returns a map of key→value.
-	GetSecret(ctx context.Context, path string) (map[string]string, error)
+	// GetSecret retrieves a single secret value by its backend-specific reference.
+	GetSecret(ctx context.Context, ref string) (string, error)
 }
 
-// Type represents a supported secret backend.
-type Type string
+// PathProvider is an optional extension for providers that support bulk
+// retrieval of secrets under a path prefix.
+type PathProvider interface {
+	SecretProvider
+	GetSecretsByPath(ctx context.Context, path string) (map[string]string, error)
+}
+
+// BackendType enumerates the supported secret backends.
+type BackendType string
 
 const (
-	TypeVault Type = "vault"
-	TypeSSM   Type = "ssm"
+	BackendVault BackendType = "vault"
+	BackendSSM   BackendType = "ssm"
 )
 
-// Config holds generic provider configuration.
+// Config holds the configuration needed to instantiate a provider.
 type Config struct {
-	Type Type
-
+	Backend BackendType
 	// Vault-specific
-	VaultAddress   string
-	VaultToken     string
-	VaultNamespace string
-
+	VaultAddr  string
+	VaultToken string
 	// SSM-specific
 	AWSRegion string
 }
 
-// New constructs a SecretProvider from the given Config.
-func New(cfg Config) (SecretProvider, error) {
-	switch cfg.Type {
-	case TypeVault:
-		return NewVaultProvider(VaultConfig{
-			Address:   cfg.VaultAddress,
-			Token:     cfg.VaultToken,
-			Namespace: cfg.VaultNamespace,
-		})
-	case TypeSSM:
-		return nil, fmt.Errorf("provider: SSM not yet implemented")
+// New returns a SecretProvider for the given configuration.
+func New(ctx context.Context, cfg Config) (SecretProvider, error) {
+	switch strings.ToLower(string(cfg.Backend)) {
+	case string(BackendVault):
+		return NewVaultProvider(cfg.VaultAddr, cfg.VaultToken)
+	case string(BackendSSM):
+		return NewSSMProvider(ctx, cfg.AWSRegion)
 	default:
-		return nil, fmt.Errorf("provider: unknown type %q", cfg.Type)
+		return nil, fmt.Errorf("provider: unknown backend %q (supported: vault, ssm)", cfg.Backend)
 	}
 }
