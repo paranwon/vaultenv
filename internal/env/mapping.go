@@ -5,57 +5,50 @@ import (
 	"strings"
 )
 
-// Mapping describes how a secret path/key maps to an environment variable name.
+// Mapping represents a single environment variable → secret path binding.
+// Format: ENV_VAR=path/to/secret[#key]
+// The optional #key fragment selects a specific field within the secret.
 type Mapping struct {
-	// EnvVar is the target environment variable name (e.g. "DB_PASSWORD").
-	EnvVar string
-	// Path is the secret path in the provider (e.g. "secret/myapp").
-	Path string
-	// Key is the field within the secret (e.g. "password"). Optional.
-	Key string
+	EnvVar string // destination environment variable name
+	Path   string // secret path in the provider (Vault or SSM)
+	Key    string // optional field key within the secret
 }
 
-// ParseMapping parses a mapping string of the form:
+// ParseMapping parses a single mapping string of the form:
 //
-//	ENV_VAR=provider:path[#key]
-//
-// Examples:
-//
-//	DB_PASS=vault:secret/myapp#password
-//	API_KEY=ssm:/myapp/api_key
+//	ENV_VAR=path/to/secret
+//	ENV_VAR=path/to/secret#field
 func ParseMapping(s string) (Mapping, error) {
 	eqIdx := strings.IndexByte(s, '=')
-	if eqIdx <= 0 {
-		return Mapping{}, fmt.Errorf("env: invalid mapping %q: missing '='" , s)
+	if eqIdx < 0 {
+		return Mapping{}, fmt.Errorf("mapping %q: missing '=' separator", s)
 	}
 
 	envVar := s[:eqIdx]
+	if envVar == "" {
+		return Mapping{}, fmt.Errorf("mapping %q: environment variable name must not be empty", s)
+	}
+
 	rest := s[eqIdx+1:]
-
 	if rest == "" {
-		return Mapping{}, fmt.Errorf("env: invalid mapping %q: empty secret reference", s)
+		return Mapping{}, fmt.Errorf("mapping %q: secret path must not be empty", s)
 	}
 
-	var path, key string
-	if hashIdx := strings.LastIndexByte(rest, '#'); hashIdx >= 0 {
-		path = rest[:hashIdx]
-		key = rest[hashIdx+1:]
-	} else {
-		path = rest
-	}
+	path, key, _ := strings.Cut(rest, "#")
 
-	if path == "" {
-		return Mapping{}, fmt.Errorf("env: invalid mapping %q: empty path", s)
-	}
-
-	return Mapping{EnvVar: envVar, Path: path, Key: key}, nil
+	return Mapping{
+		EnvVar: envVar,
+		Path:   path,
+		Key:    key,
+	}, nil
 }
 
-// ParseMappings parses multiple mapping strings and returns them all.
-func ParseMappings(entries []string) ([]Mapping, error) {
-	mappings := make([]Mapping, 0, len(entries))
-	for _, e := range entries {
-		m, err := ParseMapping(e)
+// ParseMappings parses a slice of mapping strings and returns all Mappings.
+// It returns an error on the first invalid entry.
+func ParseMappings(specs []string) ([]Mapping, error) {
+	mappings := make([]Mapping, 0, len(specs))
+	for _, spec := range specs {
+		m, err := ParseMapping(spec)
 		if err != nil {
 			return nil, err
 		}
