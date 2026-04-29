@@ -3,48 +3,37 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strings"
+
+	"github.com/your-org/vaultenv/internal/config"
 )
 
-// SecretProvider is the common interface implemented by all secret backends.
-type SecretProvider interface {
-	// GetSecret retrieves a single secret value by its backend-specific reference.
-	GetSecret(ctx context.Context, ref string) (string, error)
-}
-
-// PathProvider is an optional extension for providers that support bulk
-// retrieval of secrets under a path prefix.
-type PathProvider interface {
-	SecretProvider
+// Provider is the interface all secret backends must implement.
+type Provider interface {
+	// GetSecret retrieves a single secret value by path and key.
+	GetSecret(ctx context.Context, path, key string) (string, error)
+	// GetSecretsByPath retrieves all key/value pairs under a path.
 	GetSecretsByPath(ctx context.Context, path string) (map[string]string, error)
 }
 
-// BackendType enumerates the supported secret backends.
-type BackendType string
-
-const (
-	BackendVault BackendType = "vault"
-	BackendSSM   BackendType = "ssm"
-)
-
-// Config holds the configuration needed to instantiate a provider.
-type Config struct {
-	Backend BackendType
-	// Vault-specific
-	VaultAddr  string
-	VaultToken string
-	// SSM-specific
-	AWSRegion string
-}
-
-// New returns a SecretProvider for the given configuration.
-func New(ctx context.Context, cfg Config) (SecretProvider, error) {
-	switch strings.ToLower(string(cfg.Backend)) {
-	case string(BackendVault):
-		return NewVaultProvider(cfg.VaultAddr, cfg.VaultToken)
-	case string(BackendSSM):
-		return NewSSMProvider(ctx, cfg.AWSRegion)
+// New constructs the appropriate Provider implementation based on the config.
+// It returns an error if the provider type is unknown or misconfigured.
+func New(cfg *config.Config) (Provider, error) {
+	switch cfg.Provider {
+	case "vault":
+		return NewVaultProvider(cfg)
+	case "ssm":
+		return NewSSMProvider(cfg)
+	case "multi":
+		var providers []Provider
+		for _, sub := range cfg.MultiProviders {
+			p, err := New(sub)
+			if err != nil {
+				return nil, fmt.Errorf("multi provider: failed to init sub-provider %q: %w", sub.Provider, err)
+			}
+			providers = append(providers, p)
+		}
+		return NewMultiProvider(providers...)
 	default:
-		return nil, fmt.Errorf("provider: unknown backend %q (supported: vault, ssm)", cfg.Backend)
+		return nil, fmt.Errorf("unknown provider %q", cfg.Provider)
 	}
 }
