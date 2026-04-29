@@ -39,6 +39,7 @@ Secrets are fetched at process startup, injected into the child process environm
 | `--addr` | Vault server address | `$VAULT_ADDR` |
 | `--region` | AWS region (SSM only) | `$AWS_REGION` |
 | `--prefix` | Strip path prefix from env var names | `false` |
+| `--timeout` | Timeout for secret backend requests | `10s` |
 
 ### Authentication
 
