@@ -70,3 +70,17 @@ func TestWait_RespectsSustainedRate(t *testing.T) {
 		t.Fatalf("rate limiter too slow: %v for %d calls", elapsed, calls)
 	}
 }
+
+func TestWait_AlreadyCancelledContext(t *testing.T) {
+	// Verify that Wait returns immediately when given an already-cancelled context,
+	// regardless of available burst tokens.
+	l, err := ratelimit.New(ratelimit.Policy{RequestsPerSecond: 100, Burst: 10})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel before calling Wait
+	if err := l.Wait(ctx); err == nil {
+		t.Fatal("expected error for already-cancelled context")
+	}
+}
