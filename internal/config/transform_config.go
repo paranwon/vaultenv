@@ -30,3 +30,10 @@ func ValidateTransform(name string) error {
 func DefaultTransformConfig() TransformConfig {
 	return TransformConfig{Name: "none"}
 }
+
+// IsNoOp reports whether the transform is a no-op (i.e. "none" or empty).
+// This can be used to skip unnecessary processing when applying transforms.
+func (t TransformConfig) IsNoOp() bool {
+	norm := strings.ToLower(strings.TrimSpace(t.Name))
+	return norm == "none" || norm == ""
+}
