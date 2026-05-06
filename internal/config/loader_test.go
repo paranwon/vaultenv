@@ -37,6 +37,15 @@ secrets:
 	}
 }
 
+func TestLoadFromEnv_MissingFile(t *testing.T) {
+	t.Setenv("VAULTENV_CONFIG", "/nonexistent/path/config.yaml")
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected error for missing explicit config file, got nil")
+	}
+}
+
 func TestLoadDefault_NoneFound(t *testing.T) {
 	// Change to a temp dir so no default config files exist.
 	orig, _ := os.Getwd()
