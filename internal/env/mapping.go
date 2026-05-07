@@ -35,6 +35,9 @@ func ParseMapping(s string) (Mapping, error) {
 	}
 
 	path, key, _ := strings.Cut(rest, "#")
+	if path == "" {
+		return Mapping{}, fmt.Errorf("mapping %q: secret path must not be empty", s)
+	}
 
 	return Mapping{
 		EnvVar: envVar,
@@ -55,4 +58,13 @@ func ParseMappings(specs []string) ([]Mapping, error) {
 		mappings = append(mappings, m)
 	}
 	return mappings, nil
+}
+
+// String returns the canonical string representation of a Mapping,
+// suitable for round-tripping through ParseMapping.
+func (m Mapping) String() string {
+	if m.Key != "" {
+		return fmt.Sprintf("%s=%s#%s", m.EnvVar, m.Path, m.Key)
+	}
+	return fmt.Sprintf("%s=%s", m.EnvVar, m.Path)
 }
