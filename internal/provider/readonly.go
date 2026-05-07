@@ -36,20 +36,26 @@ func NewReadOnlyProvider(inner Provider, allowedPaths []string) (Provider, error
 	return p, nil
 }
 
+// isAllowed reports whether the given path is permitted under the current
+// allowlist configuration. If no filter is active, all paths are allowed.
+func (p *readOnlyProvider) isAllowed(path string) bool {
+	if !p.hasFilter {
+		return true
+	}
+	_, ok := p.allowlist[path]
+	return ok
+}
+
 func (p *readOnlyProvider) GetSecret(ctx context.Context, path, key string) (string, error) {
-	if p.hasFilter {
-		if _, ok := p.allowlist[path]; !ok {
-			return "", &NotFoundError{Key: path + "/" + key}
-		}
+	if !p.isAllowed(path) {
+		return "", &NotFoundError{Key: path + "/" + key}
 	}
 	return p.inner.GetSecret(ctx, path, key)
 }
 
 func (p *readOnlyProvider) GetSecretsByPath(ctx context.Context, path string) (map[string]string, error) {
-	if p.hasFilter {
-		if _, ok := p.allowlist[path]; !ok {
-			return nil, &NotFoundError{Key: path}
-		}
+	if !p.isAllowed(path) {
+		return nil, &NotFoundError{Key: path}
 	}
 	return p.inner.GetSecretsByPath(ctx, path)
 }
