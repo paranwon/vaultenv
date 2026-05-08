@@ -92,3 +92,13 @@ func TestMultiProvider_GetSecretsByPath_Fallback(t *testing.T) {
 		t.Errorf("unexpected values: %v", vals)
 	}
 }
+
+func TestMultiProvider_GetSecretsByPath_AllFail(t *testing.T) {
+	p1 := &stubProvider{err: errors.New("err1")}
+	p2 := &stubProvider{err: errors.New("err2")}
+	mp, _ := NewMultiProvider(p1, p2)
+	_, err := mp.GetSecretsByPath(context.Background(), "any/path")
+	if err == nil {
+		t.Fatal("expected error when all providers fail for GetSecretsByPath")
+	}
+}
